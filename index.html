@@ -3,19 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Neon Space Tetris - React Edition</title>
+    <title>Neon Cyber Arcade</title>
     
     <!-- React & ReactDOM -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     
-    <!-- Babel (para JSX) -->
+    <!-- Babel -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Google Fonts: Orbitron y Rajdhani para look Tech -->
+    <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
     
     <script>
@@ -33,24 +33,30 @@
                             green: '#00ff41',
                             yellow: '#ffee00',
                             purple: '#bc13fe',
+                            orange: '#ff8800',
+                            red: '#ff003c',
+                            gold: '#ffd700',
                         },
-                        space: {
-                            dark: '#05050b',
-                            panel: 'rgba(15, 23, 42, 0.7)',
-                        }
-                    },
-                    boxShadow: {
-                        'neon-blue': '0 0 10px #00f3ff, 0 0 20px #00f3ff',
-                        'neon-pink': '0 0 10px #ff00de, 0 0 20px #ff00de',
                     },
                     animation: {
-                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'pulse-fast': 'pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite',
                         'star-move': 'moveStars 100s linear infinite',
+                        'float': 'float 6s ease-in-out infinite',
+                        'combo-pop': 'comboPop 0.5s ease-out forwards',
                     },
                     keyframes: {
                         moveStars: {
                             '0%': { backgroundPosition: '0 0' },
                             '100%': { backgroundPosition: '1000px 1000px' },
+                        },
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-20px)' },
+                        },
+                        comboPop: {
+                            '0%': { transform: 'scale(0.5)', opacity: 0 },
+                            '50%': { transform: 'scale(1.2)' },
+                            '100%': { transform: 'scale(1)', opacity: 1 },
                         }
                     }
                 }
@@ -63,40 +69,42 @@
             background-color: #05050b;
             color: white;
             overflow: hidden;
+            touch-action: none;
         }
         
-        /* Efecto de fondo de estrellas */
         .stars-bg {
             background-image: 
                 radial-gradient(2px 2px at 20px 30px, #eee, rgba(0,0,0,0)),
                 radial-gradient(2px 2px at 40px 70px, #fff, rgba(0,0,0,0)),
                 radial-gradient(2px 2px at 50px 160px, #ddd, rgba(0,0,0,0)),
-                radial-gradient(2px 2px at 90px 40px, #fff, rgba(0,0,0,0)),
-                radial-gradient(2px 2px at 130px 80px, #fff, rgba(0,0,0,0));
+                radial-gradient(2px 2px at 90px 40px, #fff, rgba(0,0,0,0));
             background-repeat: repeat;
             background-size: 200px 200px;
         }
 
-        /* Glassmorphism robusto */
         .glass-panel {
-            background: rgba(13, 18, 30, 0.75);
+            background: rgba(13, 18, 30, 0.85);
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
             border: 1px solid rgba(255, 255, 255, 0.1);
             box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
         }
 
-        /* Efecto scanline sutil */
         .scanlines {
             background: linear-gradient(
                 to bottom,
                 rgba(255,255,255,0),
                 rgba(255,255,255,0) 50%,
-                rgba(0,0,0,0.2) 50%,
-                rgba(0,0,0,0.2)
+                rgba(0,0,0,0.1) 50%,
+                rgba(0,0,0,0.1)
             );
             background-size: 100% 4px;
             pointer-events: none;
+        }
+
+        .game-card:hover {
+            box-shadow: 0 0 30px var(--hover-color);
+            border-color: var(--hover-color);
         }
     </style>
 </head>
@@ -106,257 +114,515 @@
     <script type="text/babel">
         const { useState, useEffect, useRef, useCallback } = React;
 
-        // --- ICONS (SVG Components directos para evitar errores de Lucide CDN) ---
-        const PlayIcon = ({ size = 20 }) => (
-            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-        );
-        const PauseIcon = ({ size = 20 }) => (
-            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
-        );
-        const RefreshIcon = ({ size = 20 }) => (
-            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12" /><path d="M3 3v9h9" /></svg>
-        );
-        const HomeIcon = ({ size = 20 }) => (
-            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-        );
-        const TrophyIcon = ({ size = 20 }) => (
-            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
-        );
-        const LayersIcon = ({ size = 20 }) => (
-            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
-        );
-        const ZapIcon = ({ size = 20 }) => (
-            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-        );
+        // --- ICONS ---
+        const PlayIcon = ({ size = 20 }) => ( <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> );
+        const PauseIcon = ({ size = 20 }) => ( <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg> );
+        const RefreshIcon = ({ size = 20 }) => ( <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12" /><path d="M3 3v9h9" /></svg> );
+        const HomeIcon = ({ size = 20 }) => ( <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> );
+        const TrophyIcon = ({ size = 20 }) => ( <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg> );
+        const ZapIcon = ({ size = 20 }) => ( <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> );
+        const LayersIcon = ({ size = 20 }) => ( <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg> );
+        const BackIcon = ({ size = 20 }) => ( <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> );
+        const BombIcon = ({ size = 20 }) => ( <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="m14.5 9-5 5"/><path d="m9.5 9 5 5"/></svg> );
 
-        // --- GAME LOGIC CONSTANTS ---
-        const COLS = 10;
-        const ROWS = 20;
-        const BLOCK_SIZE = 30;
-        const COLORS = [
-            null,
-            '#00f3ff', // I - Cyan
-            '#0051ff', // J - Blue
-            '#ff8800', // L - Orange
-            '#ffee00', // O - Yellow
-            '#00ff41', // S - Green
-            '#bc13fe', // T - Purple
-            '#ff003c'  // Z - Red
-        ];
-        const SHAPES = [
-            [], 
-            [[0,0,0,0], [1,1,1,1], [0,0,0,0], [0,0,0,0]], // I
-            [[2,0,0], [2,2,2], [0,0,0]], // J
-            [[0,0,3], [3,3,3], [0,0,0]], // L
-            [[4,4], [4,4]], // O
-            [[0,5,5], [5,5,0], [0,0,0]], // S
-            [[0,6,0], [6,6,6], [0,0,0]], // T
-            [[7,7,0], [0,7,7], [0,0,0]]  // Z
-        ];
-
-        // --- COMPONENTS ---
-
-        // Componente de Botón Reutilizable
+        // --- SHARED COMPONENTS ---
         const NeonButton = ({ onClick, children, color = 'blue', icon: Icon, small = false }) => {
-            const colorClass = color === 'pink' 
-                ? 'border-neon-pink text-neon-pink hover:bg-neon-pink hover:text-black hover:shadow-neon-pink' 
-                : 'border-neon-blue text-neon-blue hover:bg-neon-blue hover:text-black hover:shadow-neon-blue';
-            
+            const colors = {
+                blue: 'border-neon-blue text-neon-blue hover:bg-neon-blue hover:text-black hover:shadow-[0_0_20px_#00f3ff]',
+                pink: 'border-neon-pink text-neon-pink hover:bg-neon-pink hover:text-black hover:shadow-[0_0_20px_#ff00de]',
+                green: 'border-neon-green text-neon-green hover:bg-neon-green hover:text-black hover:shadow-[0_0_20px_#00ff41]',
+                yellow: 'border-neon-yellow text-neon-yellow hover:bg-neon-yellow hover:text-black hover:shadow-[0_0_20px_#ffee00]',
+                red: 'border-neon-red text-neon-red hover:bg-neon-red hover:text-black hover:shadow-[0_0_20px_#ff003c]',
+            };
             const sizeClass = small ? 'px-4 py-2 text-sm' : 'px-8 py-3 text-lg';
-
             return (
-                <button 
-                    onClick={onClick}
-                    className={`
-                        ${colorClass}
-                        border-2 ${sizeClass} rounded-md
-                        font-orbitron font-bold tracking-widest uppercase
-                        transition-all duration-200 transform hover:scale-105 active:scale-95
-                        flex items-center gap-3 justify-center mb-4
-                        ${!small ? 'w-full' : ''}
-                    `}
-                >
-                    {Icon && <Icon size={small ? 16 : 20} />}
-                    {children}
+                <button onClick={onClick} className={`${colors[color]} border-2 ${sizeClass} rounded-md font-orbitron font-bold tracking-widest uppercase transition-all duration-200 transform hover:scale-105 active:scale-95 flex items-center gap-3 justify-center mb-3 w-full`}>
+                    {Icon && <Icon size={small ? 16 : 20} />} {children}
                 </button>
             );
         };
 
         const InfoPanel = ({ label, value, icon: Icon, color }) => (
             <div className="glass-panel p-4 rounded-lg flex flex-col items-center justify-center w-full mb-4 border-l-4" style={{ borderColor: color }}>
-                <div className="text-gray-400 text-xs font-rajdhani uppercase tracking-widest mb-1 flex items-center gap-2">
-                    {Icon && <Icon size={14} />} {label}
-                </div>
-                <div className="text-2xl font-orbitron font-bold" style={{ color: color, textShadow: `0 0 10px ${color}` }}>
-                    {value}
-                </div>
+                <div className="text-gray-400 text-xs font-rajdhani uppercase tracking-widest mb-1 flex items-center gap-2">{Icon && <Icon size={14} />} {label}</div>
+                <div className="text-2xl font-orbitron font-bold" style={{ color: color, textShadow: `0 0 10px ${color}` }}>{value}</div>
             </div>
         );
 
-        // --- MAIN APP COMPONENT ---
-        const App = () => {
-            // React State for UI
-            const [gameState, setGameState] = useState('menu'); // menu, playing, paused, gameover
+        // ==========================================
+        // GAME 1: CYBER SNAKE (Standard)
+        // ==========================================
+        const SnakeGame = ({ onBack }) => {
+            const [gameState, setGameState] = useState('menu');
+            const [score, setScore] = useState(0);
+            const [highScore, setHighScore] = useState(parseInt(localStorage.getItem('snakeHighScore') || '0'));
+            
+            const canvasRef = useRef(null);
+            const requestRef = useRef();
+            
+            const CELL_SIZE = 25, GRID_W = 20, GRID_H = 20;
+            const SNAKE_HEAD_COLOR = '#00f3ff', FOOD_COLOR = '#00ff41';
+
+            const game = useRef({
+                snake: [], prevSnake: [], food: {}, direction: {}, inputQueue: [],
+                lastTime: 0, accumTime: 0, speed: 100, particles: [], glowIntensity: 0
+            });
+
+            const spawnFood = (snakeBody) => {
+                let newFood, isColliding;
+                do {
+                    isColliding = false;
+                    newFood = { x: Math.floor(Math.random() * GRID_W), y: Math.floor(Math.random() * GRID_H) };
+                    for(let segment of snakeBody) {
+                        if (segment.x === newFood.x && segment.y === newFood.y) { isColliding = true; break; }
+                    }
+                } while (isColliding);
+                return newFood;
+            };
+
+            const initGame = (difficulty) => {
+                let speedMs = difficulty === 'easy' ? 150 : (difficulty === 'hard' ? 60 : 100);
+                const startSnake = [{x: 5, y: 10}, {x: 4, y: 10}, {x: 3, y: 10}];
+                game.current = {
+                    snake: JSON.parse(JSON.stringify(startSnake)),
+                    prevSnake: JSON.parse(JSON.stringify(startSnake)),
+                    food: spawnFood(startSnake),
+                    direction: {x: 1, y: 0},
+                    inputQueue: [],
+                    lastTime: performance.now(),
+                    accumTime: 0,
+                    speed: speedMs,
+                    particles: [],
+                    glowIntensity: 0
+                };
+                setScore(0);
+                setGameState('playing');
+                if (requestRef.current) cancelAnimationFrame(requestRef.current);
+                setTimeout(() => draw(), 0);
+            };
+
+            const createParticles = (x, y, color) => {
+                for (let i = 0; i < 15; i++) {
+                    game.current.particles.push({
+                        x: x * CELL_SIZE + CELL_SIZE/2, y: y * CELL_SIZE + CELL_SIZE/2,
+                        vx: (Math.random() - 0.5) * 8, vy: (Math.random() - 0.5) * 8,
+                        life: 1.0, color: color
+                    });
+                }
+            };
+
+            const update = (time) => {
+                if (gameState !== 'playing') return;
+                const deltaTime = time - game.current.lastTime;
+                game.current.lastTime = time;
+                game.current.accumTime += deltaTime;
+                game.current.glowIntensity = (Math.sin(time / 200) + 1) / 2;
+
+                if (game.current.accumTime > game.current.speed) {
+                    game.current.accumTime -= game.current.speed;
+                    moveSnake();
+                }
+                draw();
+                requestRef.current = requestAnimationFrame(update);
+            };
+
+            const moveSnake = () => {
+                if (game.current.inputQueue.length > 0) game.current.direction = game.current.inputQueue.shift();
+                game.current.prevSnake = game.current.snake.map(segment => ({...segment}));
+                const head = { ...game.current.snake[0] };
+                head.x += game.current.direction.x;
+                head.y += game.current.direction.y;
+
+                if (head.x >= GRID_W) head.x = 0; else if (head.x < 0) head.x = GRID_W - 1;
+                if (head.y >= GRID_H) head.y = 0; else if (head.y < 0) head.y = GRID_H - 1;
+
+                for (let i = 0; i < game.current.snake.length - 1; i++) {
+                     if (head.x === game.current.snake[i].x && head.y === game.current.snake[i].y) {
+                         handleGameOver(); return;
+                     }
+                }
+                game.current.snake.unshift(head);
+                if (head.x === game.current.food.x && head.y === game.current.food.y) {
+                    setScore(prev => prev + 10);
+                    createParticles(head.x, head.y, FOOD_COLOR);
+                    game.current.food = spawnFood(game.current.snake);
+                } else {
+                    game.current.snake.pop();
+                }
+            };
+
+            const handleGameOver = () => {
+                setGameState('gameover');
+                if (score > highScore) { setHighScore(score); localStorage.setItem('snakeHighScore', score); }
+            };
+
+            const togglePause = () => {
+                setGameState(prev => {
+                    if (prev === 'playing') return 'paused';
+                    if (prev === 'paused') {
+                        game.current.lastTime = performance.now();
+                        requestAnimationFrame(update);
+                        return 'playing';
+                    }
+                    return prev;
+                });
+            };
+
+            const draw = () => {
+                const ctx = canvasRef.current?.getContext('2d');
+                if (!ctx) return;
+                ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+
+                ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 1;
+                for(let i=0; i<=GRID_W; i++) { ctx.beginPath(); ctx.moveTo(i*CELL_SIZE, 0); ctx.lineTo(i*CELL_SIZE, ctx.canvas.height); ctx.stroke(); }
+                for(let j=0; j<=GRID_H; j++) { ctx.beginPath(); ctx.moveTo(0, j*CELL_SIZE); ctx.lineTo(ctx.canvas.width, j*CELL_SIZE); ctx.stroke(); }
+
+                const foodX = game.current.food.x * CELL_SIZE + CELL_SIZE/2;
+                const foodY = game.current.food.y * CELL_SIZE + CELL_SIZE/2;
+                ctx.shadowColor = FOOD_COLOR; ctx.shadowBlur = 20 + (game.current.glowIntensity * 10); ctx.fillStyle = FOOD_COLOR;
+                ctx.beginPath(); ctx.moveTo(foodX, foodY - 8); ctx.lineTo(foodX + 8, foodY); ctx.lineTo(foodX, foodY + 8); ctx.lineTo(foodX - 8, foodY); ctx.closePath(); ctx.fill(); ctx.shadowBlur = 0;
+
+                const alpha = Math.min(game.current.accumTime / game.current.speed, 1.0);
+                if (game.current.snake.length > 0) {
+                    game.current.snake.forEach((segment, index) => {
+                        const prev = game.current.prevSnake[index] || segment;
+                        let startX = prev.x * CELL_SIZE, startY = prev.y * CELL_SIZE;
+                        let endX = segment.x * CELL_SIZE, endY = segment.y * CELL_SIZE;
+                        
+                        if (Math.abs(segment.x - prev.x) > 1 || Math.abs(segment.y - prev.y) > 1) { startX = endX; startY = endY; }
+                        
+                        const cx = (startX + (endX - startX) * alpha) + CELL_SIZE/2;
+                        const cy = (startY + (endY - startY) * alpha) + CELL_SIZE/2;
+
+                        if (index === 0) {
+                            ctx.shadowColor = SNAKE_HEAD_COLOR; ctx.shadowBlur = 20; ctx.fillStyle = "#ffffff";
+                            ctx.beginPath(); ctx.moveTo(cx, cy - 14); ctx.lineTo(cx + 14, cy); ctx.lineTo(cx, cy + 14); ctx.lineTo(cx - 14, cy); ctx.closePath(); ctx.fill();
+                            ctx.fillStyle = "#000"; ctx.beginPath(); ctx.arc(cx + (game.current.direction.x * 4), cy + (game.current.direction.y * 4), 2, 0, Math.PI*2); ctx.fill();
+                        } else {
+                            const t = index / game.current.snake.length;
+                            const hue = 180 + (t * 100);
+                            ctx.fillStyle = `hsl(${hue}, 100%, 50%)`; ctx.shadowColor = `hsl(${hue}, 100%, 50%)`; ctx.shadowBlur = 10 - (t * 5);
+                            const size = (CELL_SIZE - 4) * (1 - (t * 0.4));
+                            ctx.beginPath(); ctx.rect(cx - size/2, cy - size/2, size, size); ctx.fill();
+                        }
+                        ctx.shadowBlur = 0;
+                    });
+                }
+                
+                for (let i = game.current.particles.length - 1; i >= 0; i--) {
+                    let p = game.current.particles[i];
+                    ctx.globalAlpha = p.life; ctx.fillStyle = p.color;
+                    ctx.beginPath(); ctx.arc(p.x, p.y, p.life * 4, 0, Math.PI * 2); ctx.fill();
+                    p.x += p.vx; p.y += p.vy; p.life -= 0.05;
+                    if (p.life <= 0) game.current.particles.splice(i, 1);
+                }
+                ctx.globalAlpha = 1.0;
+            };
+
+            useEffect(() => {
+                const handleKeyDown = (e) => {
+                    if (e.code === 'Enter') { if (gameState === 'playing' || gameState === 'paused') togglePause(); return; }
+                    if (gameState !== 'playing') return;
+                    const lastMove = game.current.inputQueue.length > 0 ? game.current.inputQueue[game.current.inputQueue.length - 1] : game.current.direction;
+                    let newDir = null;
+                    if (e.code === 'ArrowUp' && lastMove.y === 0) newDir = {x: 0, y: -1};
+                    else if (e.code === 'ArrowDown' && lastMove.y === 0) newDir = {x: 0, y: 1};
+                    else if (e.code === 'ArrowLeft' && lastMove.x === 0) newDir = {x: -1, y: 0};
+                    else if (e.code === 'ArrowRight' && lastMove.x === 0) newDir = {x: 1, y: 0};
+                    if (newDir && game.current.inputQueue.length < 3) game.current.inputQueue.push(newDir);
+                };
+                window.addEventListener('keydown', handleKeyDown);
+                return () => window.removeEventListener('keydown', handleKeyDown);
+            }, [gameState]);
+
+            useEffect(() => {
+                if (gameState === 'playing') { game.current.lastTime = performance.now(); requestRef.current = requestAnimationFrame(update); }
+                return () => cancelAnimationFrame(requestRef.current);
+            }, [gameState]);
+
+            return (
+                <div className="flex flex-col md:flex-row gap-8 items-start relative z-10 w-full justify-center">
+                    <div className="absolute top-4 left-4 md:hidden z-50">
+                        <button onClick={onBack} className="p-2 bg-black/50 rounded-full border border-neon-blue text-neon-blue"><BackIcon /></button>
+                    </div>
+
+                    <div className="hidden md:flex flex-col gap-4 w-64">
+                        <h1 className="text-5xl font-orbitron font-black text-transparent bg-clip-text bg-gradient-to-r from-neon-blue to-neon-purple drop-shadow-lg mb-4 text-center">CYBER<br/>SNAKE</h1>
+                        <InfoPanel label="Puntos" value={score} color="#00f3ff" icon={ZapIcon} />
+                        <InfoPanel label="Récord" value={highScore} color="#bc13fe" icon={TrophyIcon} />
+                        <NeonButton onClick={onBack} color="pink" icon={HomeIcon} small>Arcade</NeonButton>
+                    </div>
+
+                    <div className="relative p-1 rounded-lg border-2 border-gray-800 shadow-2xl bg-black">
+                        <div className="absolute inset-0 border-4 border-neon-blue opacity-20 rounded-lg pointer-events-none blur-sm"></div>
+                        <canvas ref={canvasRef} width={GRID_W * CELL_SIZE} height={GRID_H * CELL_SIZE} className="block bg-gray-900 rounded border border-gray-800 shadow-inner cursor-none" />
+                        
+                        {gameState === 'menu' && (
+                            <div className="absolute inset-0 bg-black/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center z-20 rounded-lg">
+                                <h2 className="text-4xl font-orbitron font-bold text-neon-blue mb-2">SNAKE.EXE</h2>
+                                <p className="text-gray-400 font-rajdhani mb-8 text-sm tracking-wider">SELECCIONA DIFICULTAD</p>
+                                <NeonButton onClick={() => initGame('easy')} icon={PlayIcon} color="green" small>Fácil</NeonButton>
+                                <NeonButton onClick={() => initGame('medium')} icon={PlayIcon} color="blue" small>Normal</NeonButton>
+                                <NeonButton onClick={() => initGame('hard')} icon={PlayIcon} color="pink" small>Difícil</NeonButton>
+                                <div className="mt-4"><NeonButton onClick={onBack} icon={HomeIcon} color="yellow" small>Salir</NeonButton></div>
+                            </div>
+                        )}
+                        {gameState === 'paused' && (
+                            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center z-20">
+                                <h2 className="text-3xl font-orbitron font-bold text-neon-yellow mb-6">PAUSED</h2>
+                                <NeonButton onClick={togglePause} icon={PlayIcon} color="yellow">Reanudar</NeonButton>
+                                <NeonButton onClick={() => setGameState('menu')} icon={RefreshIcon} color="pink" small>Reiniciar</NeonButton>
+                            </div>
+                        )}
+                        {gameState === 'gameover' && (
+                            <div className="absolute inset-0 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center z-20 rounded-lg">
+                                <h2 className="text-4xl font-orbitron font-bold text-neon-pink mb-2">CRASHED</h2>
+                                <div className="text-5xl font-orbitron font-bold text-white mb-2 drop-shadow-lg">{score}</div>
+                                <NeonButton onClick={() => initGame('medium')} icon={RefreshIcon} color="blue">Reintentar</NeonButton>
+                                <NeonButton onClick={() => setGameState('menu')} icon={HomeIcon} color="pink" small>Menú</NeonButton>
+                            </div>
+                        )}
+                        {gameState === 'playing' && <button onClick={togglePause} className="absolute top-2 right-2 text-white/30 hover:text-white p-2"><PauseIcon /></button>}
+                    </div>
+                </div>
+            );
+        };
+
+        // ==========================================
+        // GAME 2: NEON TETRIS (EVOLUTION)
+        // ==========================================
+        const TetrisGame = ({ onBack }) => {
+            const [gameState, setGameState] = useState('menu');
             const [score, setScore] = useState(0);
             const [level, setLevel] = useState(1);
             const [lines, setLines] = useState(0);
             const [highScore, setHighScore] = useState(parseInt(localStorage.getItem('tetrisHighScore') || '0'));
+            const [combo, setCombo] = useState(0);
+            const [sunMeter, setSunMeter] = useState(0);
+            const [isBombNext, setIsBombNext] = useState(false);
+            const [isDevMode, setIsDevMode] = useState(false); // State for UI feedback
             
-            // Refs for Game Engine (Mutable state for performance loop)
             const canvasRef = useRef(null);
             const nextCanvasRef = useRef(null);
+            const sunCanvasRef = useRef(null);
             const requestRef = useRef();
+
+            const COLS = 10, ROWS = 20, BLOCK_SIZE = 30;
+            const BOMB_ID = 99;
+
+            const SHAPES = [
+                [], 
+                [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]], // I
+                [[2,0,0],[2,2,2],[0,0,0]], // J
+                [[0,0,3],[3,3,3],[0,0,0]], // L
+                [[4,4],[4,4]], // O
+                [[0,5,5],[5,5,0],[0,0,0]], // S
+                [[0,6,0],[6,6,6],[0,0,0]], // T
+                [[7,7,0],[0,7,7],[0,0,0]], // Z
+                [[BOMB_ID]] // BOMB (1x1)
+            ];
             
-            // Game State Refs (avoid stale closures in loop)
+            const PALETTE = [
+                '#00f3ff', '#0051ff', '#ff8800', '#ffee00', '#00ff41', '#bc13fe', '#ff003c', 
+                '#ff00ff', '#00ff9d', '#ff4d00', '#7d00ff', '#00bfff'
+            ];
+            
+            const BOMB_COLOR = '#ffffff';
+
             const gameData = useRef({
-                board: [],
-                piece: null,
-                nextPiece: null,
-                score: 0,
-                lines: 0,
-                level: 1,
-                dropCounter: 0,
-                dropInterval: 1000,
-                lastTime: 0,
-                gameOver: false,
-                pieceBag: [],
-                particles: []
+                board: [], piece: null, nextPiece: null, score: 0, lines: 0, level: 1,
+                dropCounter: 0, dropInterval: 1000, lastTime: 0, gameOver: false, pieceBag: [], particles: [],
+                combo: 0, sunMeter: 0, isBombNext: false, 
+                devMode: false, inputHistory: [],
+                floatingTexts: [], bombFlashTime: 0
             });
 
-            // --- ENGINE LOGIC ---
-
             const createBoard = () => Array.from({ length: ROWS }, () => Array(COLS).fill(0));
-
+            
             const refillBag = () => {
                 let bag = [1, 2, 3, 4, 5, 6, 7];
-                for (let i = bag.length - 1; i > 0; i--) {
-                    const j = Math.floor(Math.random() * (i + 1));
-                    [bag[i], bag[j]] = [bag[j], bag[i]];
-                }
+                for (let i = bag.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [bag[i], bag[j]] = [bag[j], bag[i]]; }
                 return bag;
             };
 
+            const getRandomColor = () => Math.floor(Math.random() * PALETTE.length) + 1;
+
             const getNewPiece = () => {
-                if (gameData.current.pieceBag.length === 0) {
-                    gameData.current.pieceBag = refillBag();
+                // Check if bomb is forced (PRIORITY 1)
+                if (gameData.current.isBombNext) {
+                    gameData.current.isBombNext = false;
+                    gameData.current.sunMeter = 0;
+                    setSunMeter(0);
+                    setIsBombNext(false);
+                    return { matrix: SHAPES[8], x: 4, y: 0, color: BOMB_ID, isBomb: true };
                 }
+
+                // DEV MODE OVERRIDE (PRIORITY 2)
+                if (gameData.current.devMode) {
+                    const colorIdx = getRandomColor();
+                    return { 
+                        matrix: SHAPES[1], // Force I-Piece
+                        x: Math.floor(COLS / 2) - 2, 
+                        y: 0, 
+                        color: colorIdx, 
+                        type: 1 
+                    };
+                }
+
+                // NORMAL SPAWN (PRIORITY 3)
+                if (gameData.current.pieceBag.length === 0) gameData.current.pieceBag = refillBag();
                 const type = gameData.current.pieceBag.pop();
-                const shape = SHAPES[type];
-                return {
-                    matrix: shape,
-                    x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2),
-                    y: 0,
-                    color: type
+                const colorIdx = getRandomColor();
+                return { 
+                    matrix: SHAPES[type], 
+                    x: Math.floor(COLS / 2) - Math.floor(SHAPES[type][0].length / 2), 
+                    y: 0, 
+                    color: colorIdx,
+                    type: type 
                 };
             };
 
             const collide = (arena, player) => {
-                const m = player.matrix;
-                const o = { x: player.x, y: player.y };
+                const m = player.matrix, o = {x: player.x, y: player.y};
                 for (let y = 0; y < m.length; ++y) {
                     for (let x = 0; x < m[y].length; ++x) {
-                        if (m[y][x] !== 0 &&
-                            (arena[y + o.y] && arena[y + o.y][x + o.x]) !== 0) {
-                            return true;
-                        }
+                        if (m[y][x] !== 0 && (arena[y + o.y] && arena[y + o.y][x + o.x]) !== 0) return true;
                     }
                 }
                 return false;
             };
 
             const merge = (arena, player) => {
-                player.matrix.forEach((row, y) => {
-                    row.forEach((value, x) => {
-                        if (value !== 0) {
-                            arena[y + player.y][x + player.x] = player.color;
-                        }
-                    });
-                });
+                player.matrix.forEach((row, y) => row.forEach((value, x) => { 
+                    if(value!==0) arena[y+player.y][x+player.x] = player.isBomb ? BOMB_ID : player.color; 
+                }));
             };
 
             const rotate = (matrix, dir) => {
-                for (let y = 0; y < matrix.length; ++y) {
-                    for (let x = 0; x < y; ++x) {
-                        [matrix[x][y], matrix[y][x]] = [matrix[y][x], matrix[x][y]];
-                    }
-                }
-                if (dir > 0) matrix.forEach(row => row.reverse());
-                else matrix.reverse();
+                for(let y=0; y<matrix.length; ++y) for(let x=0; x<y; ++x) [matrix[x][y], matrix[y][x]] = [matrix[y][x], matrix[x][y]];
+                if(dir>0) matrix.forEach(row=>row.reverse()); else matrix.reverse();
             };
 
             const playerRotate = (dir) => {
-                const { piece, board } = gameData.current;
-                const pos = piece.x;
+                if (gameData.current.piece.isBomb) return;
+                const pos = gameData.current.piece.x;
                 let offset = 1;
-                rotate(piece.matrix, dir);
-                while (collide(board, piece)) {
-                    piece.x += offset;
+                rotate(gameData.current.piece.matrix, dir);
+                while (collide(gameData.current.board, gameData.current.piece)) {
+                    gameData.current.piece.x += offset;
                     offset = -(offset + (offset > 0 ? 1 : -1));
-                    if (offset > piece.matrix[0].length) {
-                        rotate(piece.matrix, -dir);
-                        piece.x = pos;
-                        return;
-                    }
+                    if (offset > gameData.current.piece.matrix[0].length) { rotate(gameData.current.piece.matrix, -dir); gameData.current.piece.x = pos; return; }
                 }
             };
 
-            const createParticles = (rowY) => {
-                for (let i = 0; i < 25; i++) {
-                    gameData.current.particles.push({
-                        x: Math.random() * (COLS * BLOCK_SIZE),
-                        y: rowY * BLOCK_SIZE + (BLOCK_SIZE/2),
-                        vx: (Math.random() - 0.5) * 15,
-                        vy: (Math.random() - 0.5) * 15,
-                        life: 1.0,
-                        color: COLORS[Math.floor(Math.random() * 7) + 1]
-                    });
+            const explode = (cx, cy) => {
+                gameData.current.bombFlashTime = 120; // 2 seconds flash
+                for (let y = cy - 1; y <= cy + 1; y++) {
+                    for (let x = cx - 1; x <= cx + 1; x++) {
+                        if (y >= 0 && y < ROWS && x >= 0 && x < COLS) {
+                            if (gameData.current.board[y][x] !== 0) {
+                                gameData.current.board[y][x] = 0;
+                                for(let k=0; k<5; k++) {
+                                    gameData.current.particles.push({
+                                        x: x*BLOCK_SIZE + BLOCK_SIZE/2, y: y*BLOCK_SIZE + BLOCK_SIZE/2,
+                                        vx: (Math.random()-0.5)*20, vy: (Math.random()-0.5)*20,
+                                        life: 1.0, color: '#ffffff'
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+                applyGravity();
+            };
+
+            const applyGravity = () => {
+                for (let x = 0; x < COLS; x++) {
+                    let writeY = ROWS - 1;
+                    for (let y = ROWS - 1; y >= 0; y--) {
+                        if (gameData.current.board[y][x] !== 0) {
+                            const val = gameData.current.board[y][x];
+                            gameData.current.board[y][x] = 0; 
+                            gameData.current.board[writeY][x] = val; 
+                            writeY--;
+                        }
+                    }
                 }
             };
 
             const arenaSweep = () => {
-                const { board } = gameData.current;
                 let rowCount = 0;
-                
                 outer: for (let y = ROWS - 1; y >= 0; y--) {
-                    for (let x = 0; x < COLS; x++) {
-                        if (board[y][x] === 0) continue outer;
-                    }
-
-                    createParticles(y); // Boom!
-                    
-                    const row = board.splice(y, 1)[0].fill(0);
-                    board.unshift(row);
-                    y++;
-                    rowCount++;
+                    for (let x = 0; x < COLS; x++) if (gameData.current.board[y][x] === 0) continue outer;
+                    for (let i = 0; i < 20; i++) gameData.current.particles.push({x: Math.random()*COLS*BLOCK_SIZE, y: y*BLOCK_SIZE, vx: (Math.random()-0.5)*15, vy: (Math.random()-0.5)*15, life: 1, color: PALETTE[Math.floor(Math.random()*PALETTE.length)]});
+                    const row = gameData.current.board.splice(y, 1)[0].fill(0);
+                    gameData.current.board.unshift(row);
+                    y++; rowCount++;
                 }
 
                 if (rowCount > 0) {
-                    const lineScores = [0, 40, 100, 300, 1200];
-                    gameData.current.score += lineScores[rowCount] * gameData.current.level;
+                    gameData.current.score += [0, 40, 100, 300, 1200][rowCount] * gameData.current.level;
                     gameData.current.lines += rowCount;
                     gameData.current.level = Math.floor(gameData.current.lines / 10) + 1;
-                    gameData.current.dropInterval = Math.max(100, 1000 - (gameData.current.level - 1) * 100);
+                    gameData.current.combo++;
+                    
+                    // Floating text for combos
+                    if (gameData.current.combo > 1) {
+                        const texts = [`COMBO x${gameData.current.combo}!`, "INCREIBLE!", "DOMINANDO!", "CYBER GOD!"];
+                        const txt = gameData.current.combo > 4 ? texts[3] : (gameData.current.combo > 3 ? texts[2] : texts[0]);
+                        gameData.current.floatingTexts.push({
+                            text: txt,
+                            x: 150, // Center of canvas
+                            y: 200,
+                            life: 1.0,
+                            vy: -1,
+                            color: '#ffee00'
+                        });
+                    }
+                    if (rowCount === 4) {
+                         gameData.current.floatingTexts.push({
+                            text: "TETRIS!",
+                            x: 150,
+                            y: 300,
+                            life: 1.5,
+                            vy: -0.5,
+                            color: '#00f3ff'
+                        });
+                    }
 
-                    // Sync to React State for UI
-                    setScore(gameData.current.score);
-                    setLines(gameData.current.lines);
-                    setLevel(gameData.current.level);
+                    // Speed Logic - 50ms slower per combo step > 1
+                    let newSpeed = Math.max(100, 1000 - (gameData.current.level - 1) * 50);
+                    if (gameData.current.combo > 1) {
+                        newSpeed += (gameData.current.combo - 1) * 50; 
+                    }
+                    gameData.current.dropInterval = newSpeed;
+
+                    let charge = rowCount === 4 ? 5 : rowCount; 
+                    gameData.current.sunMeter = Math.min(8, gameData.current.sunMeter + charge);
+
+                    if (gameData.current.sunMeter >= 8 && !gameData.current.isBombNext) {
+                        gameData.current.isBombNext = true;
+                    }
+                } else {
+                    gameData.current.combo = 0;
                 }
+
+                setScore(gameData.current.score); 
+                setLines(gameData.current.lines); 
+                setLevel(gameData.current.level);
+                setCombo(gameData.current.combo);
+                setSunMeter(gameData.current.sunMeter);
+                setIsBombNext(gameData.current.isBombNext);
             };
 
             const playerReset = () => {
                 gameData.current.piece = gameData.current.nextPiece;
                 gameData.current.nextPiece = getNewPiece();
-                drawNextPiece(); // Update preview
-
+                drawNextPiece();
                 if (collide(gameData.current.board, gameData.current.piece)) {
                     gameData.current.gameOver = true;
                     setGameState('gameover');
-                    // Check High Score
-                    if (gameData.current.score > highScore) {
-                        setHighScore(gameData.current.score);
-                        localStorage.setItem('tetrisHighScore', gameData.current.score);
-                    }
+                    if (gameData.current.score > highScore) { setHighScore(gameData.current.score); localStorage.setItem('tetrisHighScore', gameData.current.score); }
                 }
             };
 
@@ -364,6 +630,31 @@
                 gameData.current.piece.y++;
                 if (collide(gameData.current.board, gameData.current.piece)) {
                     gameData.current.piece.y--;
+                    if (gameData.current.piece.isBomb) {
+                        explode(gameData.current.piece.x, gameData.current.piece.y);
+                        playerReset();
+                        arenaSweep(); 
+                    } else {
+                        merge(gameData.current.board, gameData.current.piece);
+                        playerReset();
+                        arenaSweep();
+                    }
+                }
+                gameData.current.dropCounter = 0;
+            };
+
+            const playerHardDrop = () => {
+                while (!collide(gameData.current.board, { ...gameData.current.piece, y: gameData.current.piece.y + 1 })) {
+                    gameData.current.piece.y++;
+                    gameData.current.score += 2;
+                }
+                if (gameData.current.piece.isBomb) {
+                    explode(gameData.current.piece.x, gameData.current.piece.y);
+                    setScore(gameData.current.score);
+                    playerReset();
+                    arenaSweep();
+                } else {
+                    setScore(gameData.current.score);
                     merge(gameData.current.board, gameData.current.piece);
                     playerReset();
                     arenaSweep();
@@ -371,365 +662,378 @@
                 gameData.current.dropCounter = 0;
             };
 
-            const playerHardDrop = () => {
-                const { piece, board } = gameData.current;
-                while (!collide(board, { ...piece, y: piece.y + 1 })) {
-                    piece.y++;
-                    gameData.current.score += 2;
+            const update = (time) => {
+                if (gameData.current.gameOver || gameState !== 'playing') return;
+                const deltaTime = time - gameData.current.lastTime;
+                gameData.current.lastTime = time;
+                gameData.current.dropCounter += deltaTime;
+                if (gameData.current.dropCounter > gameData.current.dropInterval) playerDrop();
+                
+                if (gameData.current.bombFlashTime > 0) gameData.current.bombFlashTime--;
+
+                // Update floating texts
+                for (let i = gameData.current.floatingTexts.length - 1; i >= 0; i--) {
+                    let ft = gameData.current.floatingTexts[i];
+                    ft.y += ft.vy;
+                    ft.life -= 0.02;
+                    if (ft.life <= 0) gameData.current.floatingTexts.splice(i, 1);
                 }
-                setScore(gameData.current.score);
-                merge(board, piece);
-                playerReset();
-                arenaSweep();
-                gameData.current.dropCounter = 0;
+
+                draw();
+                drawSun();
+                requestRef.current = requestAnimationFrame(update);
             };
 
-            const playerMove = (offset) => {
-                gameData.current.piece.x += offset;
-                if (collide(gameData.current.board, gameData.current.piece)) {
-                    gameData.current.piece.x -= offset;
+            const drawBlock = (ctx, x, y, c) => {
+                let color = c === BOMB_ID ? BOMB_COLOR : PALETTE[c-1]; 
+                if (c===BOMB_ID) {
+                    ctx.fillStyle = '#fff';
+                    ctx.shadowColor = '#ff003c'; ctx.shadowBlur = 20;
+                    ctx.fillRect(x*BLOCK_SIZE+5, y*BLOCK_SIZE+5, BLOCK_SIZE-10, BLOCK_SIZE-10);
+                    ctx.shadowBlur = 0;
+                    ctx.fillStyle = '#ff003c';
+                    ctx.beginPath(); ctx.arc(x*BLOCK_SIZE+15, y*BLOCK_SIZE+15, 5, 0, Math.PI*2); ctx.fill();
+                } else {
+                    ctx.fillStyle = color; ctx.shadowColor = color; ctx.shadowBlur = 10;
+                    ctx.fillRect(x*BLOCK_SIZE+2, y*BLOCK_SIZE+2, BLOCK_SIZE-4, BLOCK_SIZE-4);
+                    ctx.shadowBlur=0; ctx.fillStyle="rgba(255,255,255,0.4)"; ctx.fillRect(x*BLOCK_SIZE+4, y*BLOCK_SIZE+4, BLOCK_SIZE-8, BLOCK_SIZE-8);
+                    ctx.fillStyle=color; ctx.fillRect(x*BLOCK_SIZE+8, y*BLOCK_SIZE+8, BLOCK_SIZE-16, BLOCK_SIZE-16);
                 }
-            };
-
-            // --- DRAWING ---
-
-            const drawBlock = (ctx, x, y, colorIndex, size) => {
-                const color = COLORS[colorIndex];
-                ctx.fillStyle = color;
-                
-                // Efecto Neon simple
-                ctx.shadowColor = color;
-                ctx.shadowBlur = 10;
-                ctx.fillRect(x * size + 2, y * size + 2, size - 4, size - 4);
-                
-                // Highlight interior
-                ctx.shadowBlur = 0;
-                ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
-                ctx.fillRect(x * size + 4, y * size + 4, size - 8, size - 8);
-                
-                // Centro solido
-                ctx.fillStyle = color;
-                ctx.fillRect(x * size + 8, y * size + 8, size - 16, size - 16);
             };
 
             const draw = () => {
                 const ctx = canvasRef.current?.getContext('2d');
                 if (!ctx) return;
-
-                // Clear
                 ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-
-                // Grid sutil
-                ctx.strokeStyle = '#1a1a1a';
-                ctx.lineWidth = 1;
-                for(let i=0; i<COLS; i++) {
-                    ctx.beginPath(); ctx.moveTo(i*BLOCK_SIZE, 0); ctx.lineTo(i*BLOCK_SIZE, ctx.canvas.height); ctx.stroke();
+                
+                // Bomb Flash
+                if (gameData.current.bombFlashTime > 0) {
+                    ctx.strokeStyle = '#ffd700'; // Gold
+                    ctx.lineWidth = 10;
+                    ctx.shadowColor = '#ffd700';
+                    ctx.shadowBlur = 30;
+                    ctx.strokeRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+                    ctx.shadowBlur = 0;
+                } else if (gameData.current.combo > 2) {
+                    ctx.strokeStyle = '#ffee00'; ctx.lineWidth = 4;
+                    ctx.strokeRect(0,0,ctx.canvas.width, ctx.canvas.height);
+                } else {
+                    ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 1;
+                    for(let i=0; i<COLS; i++) { ctx.beginPath(); ctx.moveTo(i*BLOCK_SIZE, 0); ctx.lineTo(i*BLOCK_SIZE, ctx.canvas.height); ctx.stroke(); }
+                    for(let j=0; j<ROWS; j++) { ctx.beginPath(); ctx.moveTo(0, j*BLOCK_SIZE); ctx.lineTo(ctx.canvas.width, j*BLOCK_SIZE); ctx.stroke(); }
                 }
-                for(let j=0; j<ROWS; j++) {
-                    ctx.beginPath(); ctx.moveTo(0, j*BLOCK_SIZE); ctx.lineTo(ctx.canvas.width, j*BLOCK_SIZE); ctx.stroke();
-                }
-
-                const { board, piece, particles } = gameData.current;
-
-                // Board
-                board.forEach((row, y) => {
-                    row.forEach((value, x) => {
-                        if (value !== 0) drawBlock(ctx, x, y, value, BLOCK_SIZE);
-                    });
-                });
-
-                // Ghost Piece
-                if (piece) {
-                    let ghostY = piece.y;
-                    while (!collide(board, { ...piece, y: ghostY + 1 })) {
-                        ghostY++;
-                    }
-                    if (ghostY !== piece.y) {
-                        ctx.globalAlpha = 0.2;
-                        piece.matrix.forEach((row, y) => {
-                            row.forEach((value, x) => {
-                                if (value !== 0) {
-                                    const cx = (piece.x + x) * BLOCK_SIZE;
-                                    const cy = (ghostY + y) * BLOCK_SIZE;
-                                    ctx.strokeStyle = COLORS[piece.color];
-                                    ctx.lineWidth = 2;
-                                    ctx.strokeRect(cx + 2, cy + 2, BLOCK_SIZE - 4, BLOCK_SIZE - 4);
-                                }
-                            });
-                        });
-                        ctx.globalAlpha = 1.0;
-                    }
-                }
-
-                // Active Piece
-                if (piece) {
-                    piece.matrix.forEach((row, y) => {
-                        row.forEach((value, x) => {
-                            if (value !== 0) drawBlock(ctx, piece.x + x, piece.y + y, piece.color, BLOCK_SIZE);
-                        });
-                    });
-                }
-
-                // Particles
-                for (let i = particles.length - 1; i >= 0; i--) {
-                    let p = particles[i];
-                    ctx.globalAlpha = p.life;
-                    ctx.fillStyle = p.color;
-                    ctx.beginPath();
-                    ctx.arc(p.x, p.y, p.life * 3, 0, Math.PI * 2);
-                    ctx.fill();
+                
+                gameData.current.board.forEach((row, y) => row.forEach((value, x) => { if(value!==0) drawBlock(ctx, x, y, value); }));
+                
+                if (gameData.current.piece) {
+                    let ghostY = gameData.current.piece.y;
+                    while (!collide(gameData.current.board, { ...gameData.current.piece, y: ghostY + 1 })) ghostY++;
                     
-                    p.x += p.vx;
-                    p.y += p.vy;
-                    p.life -= 0.04;
+                    if (ghostY !== gameData.current.piece.y) {
+                         ctx.globalAlpha = 0.3;
+                         gameData.current.piece.matrix.forEach((row, y) => row.forEach((val, x) => { 
+                             if(val) { 
+                                 const gx = (gameData.current.piece.x+x)*BLOCK_SIZE+2;
+                                 const gy = (ghostY+y)*BLOCK_SIZE+2;
+                                 const gSize = BLOCK_SIZE-4;
+                                 ctx.strokeStyle = '#ffffff'; 
+                                 ctx.fillStyle = 'rgba(255, 255, 255, 0.2)'; 
+                                 ctx.strokeRect(gx, gy, gSize, gSize); 
+                                 ctx.fillRect(gx, gy, gSize, gSize);
+                            } 
+                         }));
+                         ctx.globalAlpha = 1.0;
+                    }
+                    gameData.current.piece.matrix.forEach((row, y) => row.forEach((val, x) => { 
+                        if(val) {
+                             let c = gameData.current.piece.isBomb ? BOMB_ID : gameData.current.piece.color;
+                             drawBlock(ctx, gameData.current.piece.x+x, gameData.current.piece.y+y, c); 
+                        }
+                    }));
+                }
 
-                    if (p.life <= 0) particles.splice(i, 1);
+                for (let i = gameData.current.particles.length - 1; i >= 0; i--) {
+                    let p = gameData.current.particles[i];
+                    ctx.globalAlpha = p.life; ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.life*3, 0, Math.PI*2); ctx.fill();
+                    p.x+=p.vx; p.y+=p.vy; p.life-=0.04; if(p.life<=0) gameData.current.particles.splice(i,1);
                 }
                 ctx.globalAlpha = 1.0;
+
+                // Draw Floating Texts
+                gameData.current.floatingTexts.forEach(ft => {
+                    ctx.fillStyle = ft.color;
+                    ctx.globalAlpha = ft.life;
+                    ctx.font = "bold 30px Orbitron";
+                    ctx.textAlign = "center";
+                    ctx.shadowColor = ft.color;
+                    ctx.shadowBlur = 10;
+                    ctx.fillText(ft.text, ft.x, ft.y);
+                    ctx.shadowBlur = 0;
+                    ctx.globalAlpha = 1.0;
+                });
             };
 
             const drawNextPiece = () => {
                 const ctx = nextCanvasRef.current?.getContext('2d');
                 if (!ctx || !gameData.current.nextPiece) return;
-
                 ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-                const { matrix, color } = gameData.current.nextPiece;
+                const { matrix, color, isBomb } = gameData.current.nextPiece;
                 
-                // Calcular bounds para centrar
-                let minX = matrix[0].length, maxX = 0, minY = matrix.length, maxY = 0;
-                matrix.forEach((row, y) => {
-                    row.forEach((val, x) => {
-                        if (val !== 0) {
-                            if (x < minX) minX = x;
-                            if (x > maxX) maxX = x;
-                            if (y < minY) minY = y;
-                            if (y > maxY) maxY = y;
-                        }
-                    });
-                });
-                const w = maxX - minX + 1;
-                const h = maxY - minY + 1;
-                const NEXT_SIZE = 20;
-                const offsetX = (ctx.canvas.width - w * NEXT_SIZE) / 2;
-                const offsetY = (ctx.canvas.height - h * NEXT_SIZE) / 2;
+                const offX = (ctx.canvas.width - matrix[0].length*20)/2 + (matrix[0].length<3 ? 10 : 0);
+                const offY = (ctx.canvas.height - matrix.length*20)/2;
+                
+                if (isBomb) {
+                    ctx.fillStyle = "rgba(255, 0, 60, 0.2)";
+                    ctx.fillRect(0,0,100,100);
+                }
 
-                matrix.forEach((row, y) => {
-                    row.forEach((value, x) => {
-                        if (value !== 0) {
-                            const dx = (x - minX) * NEXT_SIZE + offsetX;
-                            const dy = (y - minY) * NEXT_SIZE + offsetY;
-                            ctx.fillStyle = COLORS[color];
-                            ctx.shadowColor = COLORS[color];
-                            ctx.shadowBlur = 5;
-                            ctx.fillRect(dx, dy, NEXT_SIZE-1, NEXT_SIZE-1);
-                            ctx.shadowBlur = 0;
-                        }
-                    });
-                });
+                matrix.forEach((row, y) => row.forEach((val, x) => {
+                    if(val) { 
+                        let c = isBomb ? '#fff' : PALETTE[color-1];
+                        ctx.fillStyle=c; ctx.shadowColor=c; ctx.shadowBlur=5; 
+                        ctx.fillRect(x*20+offX, y*20+offY, 19, 19); 
+                        ctx.shadowBlur=0; 
+                    }
+                }));
             };
 
-            // --- GAME LOOP ---
-            const update = (time) => {
-                // If paused or game over, stop logic (but we might want to keep drawing?)
-                // Actually, the useEffect will cancel the animation frame, so this won't run.
-                if (gameData.current.gameOver || gameState !== 'playing') return;
+            const drawSun = () => {
+                const ctx = sunCanvasRef.current?.getContext('2d');
+                if (!ctx) return;
+                const W = 100, H = 100, CX = 50, CY = 50, R = 30;
+                ctx.clearRect(0, 0, W, H);
+                
+                ctx.beginPath(); ctx.arc(CX, CY, R, 0, Math.PI*2);
+                ctx.fillStyle = '#111'; ctx.fill(); ctx.strokeStyle = '#333'; ctx.stroke();
 
-                const deltaTime = time - gameData.current.lastTime;
-                gameData.current.lastTime = time;
-
-                gameData.current.dropCounter += deltaTime;
-                if (gameData.current.dropCounter > gameData.current.dropInterval) {
-                    playerDrop();
+                const totalRays = 8;
+                const activeRays = gameData.current.sunMeter;
+                
+                for(let i=0; i<totalRays; i++) {
+                    const angle = (i / totalRays) * Math.PI * 2 - Math.PI/2;
+                    const isLit = i < activeRays;
+                    
+                    const sx = CX + Math.cos(angle) * (R + 5);
+                    const sy = CY + Math.sin(angle) * (R + 5);
+                    const ex = CX + Math.cos(angle) * (R + 15);
+                    const ey = CY + Math.sin(angle) * (R + 15);
+                    
+                    ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey);
+                    ctx.lineWidth = 3;
+                    ctx.strokeStyle = isLit ? '#ffee00' : '#222';
+                    if(isLit) { ctx.shadowColor = '#ffee00'; ctx.shadowBlur = 10; }
+                    else { ctx.shadowBlur = 0; }
+                    ctx.stroke();
+                    ctx.shadowBlur = 0;
                 }
 
-                draw();
-                requestRef.current = requestAnimationFrame(update);
+                if (activeRays >= 8) {
+                    ctx.fillStyle = '#ffee00';
+                    ctx.shadowColor = '#ffee00'; ctx.shadowBlur = 20;
+                    ctx.beginPath(); ctx.arc(CX, CY, R-5, 0, Math.PI*2); ctx.fill();
+                    ctx.shadowBlur = 0;
+                }
             };
 
-            // --- CONTROLS ---
-            const togglePause = useCallback(() => {
-                setGameState(prev => {
-                    if (prev === 'playing') return 'paused';
-                    if (prev === 'paused') return 'playing';
-                    return prev;
-                });
-            }, []);
-
-            const handleKeyDown = useCallback((event) => {
-                // Global keys (Pause)
-                if (event.code === 'Enter') {
-                    togglePause();
-                    return;
-                }
-
-                if (gameState !== 'playing' || gameData.current.gameOver) return;
-
-                if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space"].indexOf(event.code) > -1) {
-                    event.preventDefault();
-                }
-
-                if (event.code === 'ArrowLeft') playerMove(-1);
-                else if (event.code === 'ArrowRight') playerMove(1);
-                else if (event.code === 'ArrowDown') playerDrop();
-                else if (event.code === 'ArrowUp') playerRotate(1);
-                else if (event.code === 'Space') playerHardDrop();
-            }, [gameState, togglePause]);
+            const togglePause = useCallback(() => setGameState(prev => (prev === 'playing' ? 'paused' : (prev === 'paused' ? 'playing' : prev))), []);
 
             useEffect(() => {
+                const handleKeyDown = (e) => {
+                    // Update input history buffer for Cheat Code
+                    gameData.current.inputHistory.push(e.code);
+                    if (gameData.current.inputHistory.length > 9) {
+                        gameData.current.inputHistory.shift();
+                    }
+
+                    // Cheat Code Check: Up Up Up Left Left Left Up Up Up
+                    const cheatSeq = ["ArrowUp","ArrowUp","ArrowUp","ArrowLeft","ArrowLeft","ArrowLeft","ArrowUp","ArrowUp","ArrowUp"];
+                    if (JSON.stringify(gameData.current.inputHistory) === JSON.stringify(cheatSeq)) {
+                        // Check if pinned to left wall (try moving left, if collision true, it is pinned)
+                        if (collide(gameData.current.board, { ...gameData.current.piece, x: gameData.current.piece.x - 1 })) {
+                            gameData.current.devMode = !gameData.current.devMode; // Toggle
+                            setIsDevMode(gameData.current.devMode); // Update UI
+                        }
+                    }
+
+                    if (e.code === 'Enter') { togglePause(); return; }
+                    if (gameState !== 'playing' || gameData.current.gameOver) return;
+                    if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space"].includes(e.code)) e.preventDefault();
+                    if (e.code === 'ArrowLeft') { gameData.current.piece.x--; if(collide(gameData.current.board, gameData.current.piece)) gameData.current.piece.x++; }
+                    else if (e.code === 'ArrowRight') { gameData.current.piece.x++; if(collide(gameData.current.board, gameData.current.piece)) gameData.current.piece.x--; }
+                    else if (e.code === 'ArrowDown') playerDrop();
+                    else if (e.code === 'ArrowUp') playerRotate(1);
+                    else if (e.code === 'Space') playerHardDrop();
+                };
                 window.addEventListener('keydown', handleKeyDown);
                 return () => window.removeEventListener('keydown', handleKeyDown);
-            }, [handleKeyDown]);
+            }, [gameState]);
 
-            // --- LIFECYCLE ---
-            const startGame = () => {
-                gameData.current = {
-                    board: createBoard(),
-                    piece: null,
-                    nextPiece: null,
-                    score: 0,
-                    lines: 0,
-                    level: 1,
-                    dropCounter: 0,
-                    dropInterval: 1000,
-                    lastTime: 0,
-                    gameOver: false,
-                    pieceBag: [],
-                    particles: []
-                };
-                
-                // UI Reset
-                setScore(0);
-                setLevel(1);
-                setLines(0);
-                setGameState('playing');
-
-                // Init Pieces
-                gameData.current.nextPiece = getNewPiece();
-                playerReset();
-
-                if (requestRef.current) cancelAnimationFrame(requestRef.current);
-                
-                // Important: Reset time so first frame doesn't have huge delta
-                gameData.current.lastTime = performance.now();
-                update(performance.now());
-            };
-
-            // Hook to keep loop running when state changes only if playing
             useEffect(() => {
-                if (gameState === 'playing') {
-                    // Reset time on resume to avoid jump
-                    gameData.current.lastTime = performance.now();
-                    requestRef.current = requestAnimationFrame(update);
-                }
+                if (gameState === 'playing') { gameData.current.lastTime = performance.now(); requestRef.current = requestAnimationFrame(update); }
                 return () => cancelAnimationFrame(requestRef.current);
             }, [gameState]);
 
-            // Redraw when paused to ensure overlay sits on top of latest frame
-            useEffect(() => {
-                if (gameState === 'paused') {
-                   draw();
-                }
-            }, [gameState]);
+            const startGame = () => {
+                gameData.current = {
+                    board: createBoard(), piece: null, nextPiece: null, score: 0, lines: 0, level: 1,
+                    dropCounter: 0, dropInterval: 1000, lastTime: 0, gameOver: false, pieceBag: [], particles: [],
+                    combo: 0, sunMeter: 0, isBombNext: false, devMode: false, inputHistory: [], floatingTexts: [], bombFlashTime: 0
+                };
+                setScore(0); setLevel(1); setLines(0); setCombo(0); setSunMeter(0); setIsBombNext(false); setIsDevMode(false); setGameState('playing');
+                gameData.current.nextPiece = getNewPiece(); playerReset();
+                if (requestRef.current) cancelAnimationFrame(requestRef.current);
+                setTimeout(() => draw(), 0);
+            };
 
-
-            // --- UI RENDER ---
             return (
-                <div className="relative w-full h-screen flex items-center justify-center stars-bg animate-star-move">
-                    {/* Scanlines Overlay */}
-                    <div className="absolute inset-0 scanlines z-50 pointer-events-none opacity-30"></div>
-
-                    <div className="relative flex flex-col md:flex-row gap-8 items-start z-10">
-                        
-                        {/* LEFT COLUMN: Title & Stats */}
-                        <div className="hidden md:flex flex-col gap-4 w-64">
-                            <h1 className="text-5xl font-orbitron font-black text-transparent bg-clip-text bg-gradient-to-r from-neon-pink to-neon-blue drop-shadow-lg mb-4 text-center">
-                                NEON<br/>TETRIS
-                            </h1>
-                            
-                            <InfoPanel label="Nivel" value={level} color="#ffee00" icon={LayersIcon} />
-                            <InfoPanel label="Líneas" value={lines} color="#00ff41" icon={ZapIcon} />
-                            <InfoPanel label="High Score" value={highScore} color="#bc13fe" icon={TrophyIcon} />
-                            
-                            {/* Controls Hint */}
-                            <div className="glass-panel p-4 rounded-lg mt-4 text-xs text-gray-400 font-rajdhani">
-                                <p className="mb-2"><span className="border border-gray-600 px-1 rounded">←</span> <span className="border border-gray-600 px-1 rounded">→</span> Mover</p>
-                                <p className="mb-2"><span className="border border-gray-600 px-1 rounded">↑</span> Rotar</p>
-                                <p className="mb-2"><span className="border border-gray-600 px-1 rounded">↓</span> Caer Rápido</p>
-                                <p className="mb-2"><span className="border border-gray-600 px-1 rounded">Space</span> Caída Instantánea</p>
-                                <p className="text-neon-pink"><span className="border border-neon-pink px-1 rounded">Enter</span> Pausar</p>
-                            </div>
-                        </div>
-
-                        {/* CENTER: Game Board */}
-                        <div className="relative p-2 rounded-lg border-2 border-gray-800 shadow-2xl bg-black flex flex-col items-center">
-                            <div className="absolute inset-0 border-4 border-neon-blue opacity-20 rounded-lg pointer-events-none blur-sm"></div>
-                            <canvas 
-                                ref={canvasRef} 
-                                width={300} 
-                                height={600} 
-                                className="block bg-gray-900 rounded border border-gray-800 shadow-inner"
-                            />
-                            
-                            {/* Pause Button (Visible on Mobile/Mouse) */}
-                            {gameState === 'playing' && (
-                                <button 
-                                    onClick={togglePause}
-                                    className="absolute top-4 right-4 text-white/50 hover:text-white transition-colors"
-                                >
-                                    <PauseIcon size={24} />
-                                </button>
-                            )}
-
-                            {/* OVERLAYS */}
-                            {gameState === 'menu' && (
-                                <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center z-20">
-                                    <h2 className="text-4xl font-orbitron font-bold text-neon-blue mb-8 animate-pulse-slow">READY?</h2>
-                                    <NeonButton onClick={startGame} icon={PlayIcon}>Iniciar</NeonButton>
-                                </div>
-                            )}
-
-                            {gameState === 'paused' && (
-                                <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center z-20">
-                                    <h2 className="text-4xl font-orbitron font-bold text-neon-yellow mb-8 tracking-widest">PAUSED</h2>
-                                    <NeonButton onClick={togglePause} icon={PlayIcon}>Reanudar</NeonButton>
-                                    <NeonButton onClick={() => setGameState('menu')} icon={HomeIcon} color="pink" small>Salir</NeonButton>
-                                </div>
-                            )}
-
-                            {gameState === 'gameover' && (
-                                <div className="absolute inset-0 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center z-20">
-                                    <h2 className="text-4xl font-orbitron font-bold text-neon-pink mb-2">GAME OVER</h2>
-                                    <p className="text-gray-300 font-rajdhani mb-6">Puntuación Final</p>
-                                    <div className="text-5xl font-orbitron font-bold text-white mb-8 drop-shadow-lg">{score}</div>
-                                    
-                                    <NeonButton onClick={startGame} icon={RefreshIcon} color="blue">Reiniciar</NeonButton>
-                                    <NeonButton onClick={() => setGameState('menu')} icon={HomeIcon} color="pink">Menú</NeonButton>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* RIGHT COLUMN: Next Piece & Mobile Stats */}
-                        <div className="flex flex-col gap-4 w-64">
-                            <div className="glass-panel p-6 rounded-lg flex flex-col items-center justify-center min-h-[150px]">
-                                <div className="text-gray-400 text-xs font-rajdhani uppercase tracking-widest mb-4">Siguiente</div>
-                                <canvas ref={nextCanvasRef} width={100} height={100} className="bg-transparent" />
-                            </div>
-
-                            <div className="glass-panel p-4 rounded-lg flex flex-col items-center justify-center border-l-4 border-neon-blue">
-                                <div className="text-gray-400 text-xs font-rajdhani uppercase tracking-widest mb-1">Puntos</div>
-                                <div className="text-3xl font-orbitron font-bold text-neon-blue drop-shadow-[0_0_10px_rgba(0,243,255,0.5)]">
-                                    {score}
-                                </div>
-                            </div>
-                            
-                            {/* Mobile only stats (hidden on desktop to avoid dupe) */}
-                            <div className="md:hidden flex gap-2">
-                                <InfoPanel label="Nivel" value={level} color="#ffee00" />
-                                <InfoPanel label="Líneas" value={lines} color="#00ff41" />
-                            </div>
-                        </div>
-
+                <div className="flex flex-col md:flex-row gap-8 items-start relative z-10 w-full justify-center">
+                     <div className="absolute top-4 left-4 md:hidden z-50">
+                        <button onClick={onBack} className="p-2 bg-black/50 rounded-full border border-neon-blue text-neon-blue"><BackIcon /></button>
                     </div>
+
+                    <div className="hidden md:flex flex-col gap-4 w-64">
+                        <h1 className="text-5xl font-orbitron font-black text-transparent bg-clip-text bg-gradient-to-r from-neon-pink to-neon-blue drop-shadow-lg mb-4 text-center">CYBER<br/>TETRIS</h1>
+                        <InfoPanel label="Nivel" value={level} color="#ffee00" icon={LayersIcon} />
+                        <div className="glass-panel p-4 rounded-lg flex flex-col items-center justify-center w-full mb-4 border-l-4 border-neon-purple">
+                             <div className="text-gray-400 text-xs font-rajdhani uppercase tracking-widest mb-1">COMBO</div>
+                             <div className={`text-3xl font-orbitron font-bold transition-all ${combo > 2 ? 'text-neon-yellow scale-110' : 'text-gray-500'}`}>{combo}x</div>
+                             {combo > 1 && <div className="text-xs text-neon-blue animate-pulse mt-1">SPEED -{(combo-1)*50}ms</div>}
+                        </div>
+                        <InfoPanel label="High Score" value={highScore} color="#bc13fe" icon={TrophyIcon} />
+                        <NeonButton onClick={onBack} color="pink" icon={HomeIcon} small>Arcade</NeonButton>
+                    </div>
+
+                    <div className="relative p-2 rounded-lg border-2 border-gray-800 shadow-2xl bg-black">
+                        {/* Board Border Effect for Combos */}
+                        <div className={`absolute inset-0 border-4 rounded-lg pointer-events-none blur-sm transition-all duration-300 ${combo > 2 ? 'border-neon-yellow opacity-60 animate-pulse' : 'border-neon-blue opacity-20'}`}></div>
+                        
+                        {/* DEV MODE INDICATOR */}
+                        {isDevMode && <div className="absolute top-4 left-0 w-full text-center text-xs font-bold text-neon-green animate-pulse z-10">DEV MODE: I-PIECE ONLY</div>}
+
+                        <canvas ref={canvasRef} width={300} height={600} className="block bg-gray-900 rounded border border-gray-800 shadow-inner" />
+                        
+                        {gameState === 'menu' && (
+                            <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center z-20">
+                                <h2 className="text-4xl font-orbitron font-bold text-neon-blue mb-8">READY?</h2>
+                                <NeonButton onClick={startGame} icon={PlayIcon}>Iniciar</NeonButton>
+                                <div className="mt-4"><NeonButton onClick={onBack} icon={HomeIcon} color="yellow" small>Salir</NeonButton></div>
+                            </div>
+                        )}
+                        {gameState === 'gameover' && (
+                            <div className="absolute inset-0 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center z-20">
+                                <h2 className="text-4xl font-orbitron font-bold text-neon-pink mb-2">GAME OVER</h2>
+                                <div className="text-5xl font-orbitron font-bold text-white mb-8 drop-shadow-lg">{score}</div>
+                                <NeonButton onClick={startGame} icon={RefreshIcon} color="blue">Reiniciar</NeonButton>
+                                <NeonButton onClick={() => setGameState('menu')} icon={HomeIcon} color="pink" small>Menú</NeonButton>
+                            </div>
+                        )}
+                         {gameState === 'playing' && <button onClick={togglePause} className="absolute top-2 right-2 text-white/30 hover:text-white p-2"><PauseIcon /></button>}
+                         {gameState === 'paused' && (
+                            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center z-20">
+                                <h2 className="text-3xl font-orbitron font-bold text-neon-yellow mb-6">PAUSED</h2>
+                                <NeonButton onClick={togglePause} icon={PlayIcon} color="yellow">Reanudar</NeonButton>
+                                <NeonButton onClick={() => setGameState('menu')} icon={RefreshIcon} color="pink" small>Reiniciar</NeonButton>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="flex flex-col gap-4 w-64">
+                        <div className={`glass-panel p-6 rounded-lg flex flex-col items-center justify-center min-h-[150px] transition-all duration-300 ${isBombNext ? 'border-2 border-neon-red shadow-[0_0_20px_#ff003c]' : ''}`}>
+                            <div className={`text-xs font-rajdhani uppercase tracking-widest mb-4 ${isBombNext ? 'text-neon-red animate-pulse font-bold' : 'text-gray-400'}`}>
+                                {isBombNext ? '⚠️ PELIGRO ⚠️' : 'Siguiente'}
+                            </div>
+                            <canvas ref={nextCanvasRef} width={100} height={100} className="bg-transparent" />
+                        </div>
+                        
+                        {/* SUN METER */}
+                        <div className="glass-panel p-4 rounded-lg flex flex-col items-center justify-center relative">
+                            <div className="text-gray-400 text-xs font-rajdhani uppercase tracking-widest mb-2">Energía Solar</div>
+                            <canvas ref={sunCanvasRef} width={100} height={100} className="bg-transparent mb-2" />
+                            {sunMeter >= 8 && <div className="text-neon-yellow text-xs font-bold animate-pulse">BOMBA LISTA</div>}
+                        </div>
+
+                        <div className="glass-panel p-4 rounded-lg flex flex-col items-center justify-center border-l-4 border-neon-blue">
+                            <div className="text-gray-400 text-xs font-rajdhani uppercase tracking-widest mb-1">Puntos</div>
+                            <div className="text-3xl font-orbitron font-bold text-neon-blue">{score}</div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // ==========================================
+        // MAIN MENU / HUB
+        // ==========================================
+        const MainMenu = ({ onSelectGame }) => {
+            return (
+                <div className="flex flex-col items-center justify-center z-10 w-full max-w-4xl p-4 animate-float">
+                    <h1 className="text-6xl md:text-8xl font-orbitron font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-gray-500 drop-shadow-[0_0_20px_rgba(255,255,255,0.5)] mb-2 text-center">
+                        NEON ARCADE
+                    </h1>
+                    <p className="text-neon-blue font-rajdhani tracking-[0.5em] mb-12 text-sm md:text-base">INSERT COIN TO PLAY</p>
+                    
+                    <div className="flex flex-col md:flex-row gap-8 w-full justify-center items-center">
+                        {/* CARD TETRIS */}
+                        <div 
+                            onClick={() => onSelectGame('tetris')}
+                            className="game-card group relative w-full md:w-80 h-96 bg-black/40 border border-gray-700 rounded-xl overflow-hidden cursor-pointer transition-all duration-300 hover:scale-105"
+                            style={{'--hover-color': '#ff00de'}}
+                        >
+                            <div className="absolute inset-0 bg-gradient-to-b from-neon-pink/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                            <div className="absolute inset-0 flex flex-col items-center justify-center p-6">
+                                <div className="w-24 h-24 mb-6 rounded-full border-4 border-neon-pink flex items-center justify-center shadow-[0_0_20px_#ff00de] group-hover:shadow-[0_0_40px_#ff00de] transition-all">
+                                    <LayersIcon size={40} className="text-neon-pink" />
+                                </div>
+                                <h2 className="text-3xl font-orbitron font-bold text-white mb-2">TETRIS</h2>
+                                <p className="text-gray-400 text-center text-sm font-rajdhani">EVOLUTION<br/>Combos • Bombas • Velocidad</p>
+                                <div className="mt-8 px-6 py-2 border border-neon-pink text-neon-pink rounded text-sm tracking-widest uppercase group-hover:bg-neon-pink group-hover:text-black transition-all">Jugar</div>
+                            </div>
+                        </div>
+
+                        {/* CARD SNAKE */}
+                        <div 
+                            onClick={() => onSelectGame('snake')}
+                            className="game-card group relative w-full md:w-80 h-96 bg-black/40 border border-gray-700 rounded-xl overflow-hidden cursor-pointer transition-all duration-300 hover:scale-105"
+                            style={{'--hover-color': '#00f3ff'}}
+                        >
+                            <div className="absolute inset-0 bg-gradient-to-b from-neon-blue/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                            <div className="absolute inset-0 flex flex-col items-center justify-center p-6">
+                                <div className="w-24 h-24 mb-6 rounded-full border-4 border-neon-blue flex items-center justify-center shadow-[0_0_20px_#00f3ff] group-hover:shadow-[0_0_40px_#00f3ff] transition-all">
+                                    <ZapIcon size={40} className="text-neon-blue" />
+                                </div>
+                                <h2 className="text-3xl font-orbitron font-bold text-white mb-2">SNAKE</h2>
+                                <p className="text-gray-400 text-center text-sm font-rajdhani">Come bits de datos. <br/>No choques contra ti mismo.</p>
+                                <div className="mt-8 px-6 py-2 border border-neon-blue text-neon-blue rounded text-sm tracking-widest uppercase group-hover:bg-neon-blue group-hover:text-black transition-all">Jugar</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // ==========================================
+        // APP ROOT
+        // ==========================================
+        const App = () => {
+            const [activeGame, setActiveGame] = useState('menu'); // menu, tetris, snake
+
+            return (
+                <div className="relative w-full h-screen flex items-center justify-center stars-bg animate-star-move select-none overflow-hidden">
+                    <div className="absolute inset-0 scanlines z-50 pointer-events-none opacity-30"></div>
+                    
+                    {activeGame === 'menu' && <MainMenu onSelectGame={setActiveGame} />}
+                    
+                    {activeGame === 'tetris' && (
+                        <div className="w-full h-full flex items-center justify-center p-4 animate-in fade-in zoom-in duration-300">
+                            <TetrisGame onBack={() => setActiveGame('menu')} />
+                        </div>
+                    )}
+                    
+                    {activeGame === 'snake' && (
+                        <div className="w-full h-full flex items-center justify-center p-4 animate-in fade-in zoom-in duration-300">
+                            <SnakeGame onBack={() => setActiveGame('menu')} />
+                        </div>
+                    )}
                 </div>
             );
         };
